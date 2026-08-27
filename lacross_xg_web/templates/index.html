@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lacrosse xG Tracker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f5f7fa; color: #1a202c; padding: 20px;
+  }
+  .container { max-width: 1500px; margin: 0 auto; }
+  h1 { color: #2d3748; margin-bottom: 8px; }
+  .subtitle { color: #718096; margin-bottom: 20px; }
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: 20px;
+  }
+  .card {
+    background: white; border-radius: 8px; padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px;
+  }
+  #field-container {
+    position: relative; background: #2f855a; border-radius: 8px;
+    cursor: crosshair; overflow: hidden; aspect-ratio: 70/65;
+  }
+  #field-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  .form-group { margin-bottom: 14px; }
+  label {
+    display: block; font-size: 13px; font-weight: 600;
+    color: #4a5568; margin-bottom: 4px;
+  }
+  input[type="text"], input[type="number"], input[type="date"], select {
+    width: 100%; padding: 8px 10px; border: 1px solid #cbd5e0;
+    border-radius: 4px; font-size: 14px;
+  }
+  input:focus, select:focus {
+    outline: none; border-color: #4299e1; box-shadow: 0 0 0 3px rgba(66,153,225,0.1);
+  }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  button {
+    padding: 10px 16px; border: none; border-radius: 4px;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-primary { background: #3182ce; color: white; width: 100%; }
+  .btn-primary:hover { background: #2c5282; }
+  .btn-danger { background: #e53e3e; color: white; }
+  .btn-danger:hover { background: #c53030; }
+  .btn-secondary { background: #edf2f7; color: #2d3748; padding: 6px 12px; font-size: 12px; }
+  .btn-secondary:hover { background: #e2e8f0; }
+  .btn-success { background: #38a169; color: white; }
+  .btn-success:hover { background: #2f855a; }
+  .btn-toggle {
+    padding: 12px; font-size: 16px; font-weight: 700;
+    background: #edf2f7; color: #2d3748;
+    border: 2px solid transparent; border-radius: 4px;
+    cursor: pointer; text-align: center; width: 100%;
+  }
+  .btn-toggle:hover { background: #e2e8f0; }
+  .btn-toggle.is-goal {
+    background: #c6f6d5; color: #22543d;
+    border-color: #38a169;
+  }
+  .btn-toggle.is-goal:hover { background: #9ae6b4; }
+  .xg-pill {
+    display: inline-block; padding: 4px 10px; border-radius: 12px;
+    font-weight: 600; font-size: 13px; margin-left: 8px;
+  }
+  .xg-high { background: #c6f6d5; color: #22543d; }
+  .xg-med { background: #fefcbf; color: #744210; }
+  .xg-low { background: #fed7d7; color: #742a2a; }
+  .hand-pill {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-weight: 600; font-size: 11px; margin-left: 6px;
+    background: #e2e8f0; color: #2d3748;
+  }
+  .hand-pill.left { background: #bee3f8; color: #2c5282; }
+  .hand-pill.right { background: #faf089; color: #744210; }
+  .hand-pill.ambidextrous { background: #c6f6d5; color: #22543d; }
+  .goalie-pill {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-weight: 600; font-size: 11px; margin-left: 6px;
+    background: #e9d8fd; color: #44337a;
+  }
+  .goalie-pill.elite { background: #fed7d7; color: #742a2a; }
+  .goalie-pill.solid { background: #fefcbf; color: #744210; }
+  .goalie-pill.weak { background: #c6f6d5; color: #22543d; }
+  #shots-list {
+    max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0;
+    border-radius: 4px;
+  }
+  .shot-item {
+    padding: 10px 14px; border-bottom: 1px solid #e2e8f0;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .shot-item:last-child { border-bottom: none; }
+  .shot-meta { font-size: 12px; color: #718096; margin-top: 2px; }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-tile {
+    padding: 12px; background: #f7fafc; border-radius: 6px; text-align: center;
+  }
+  .stat-label { font-size: 11px; color: #718096; text-transform: uppercase; }
+  .stat-value { font-size: 22px; font-weight: 700; color: #2d3748; margin-top: 4px; }
+  .stat-value.positive { color: #38a169; }
+  .stat-value.negative { color: #e53e3e; }
+  .help-text { font-size: 11px; color: #a0aec0; margin-top: 4px; }
+  .empty-state {
+    text-align: center; padding: 40px 20px; color: #a0aec0; font-size: 14px;
+  }
+  .placement-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 6px; margin-top: 6px;
+  }
+  .placement-btn {
+    padding: 8px 4px; font-size: 12px; font-weight: 600;
+    background: #edf2f7; color: #2d3748; border: 2px solid transparent;
+    border-radius: 4px; cursor: pointer; text-align: center;
+  }
+  .placement-btn:hover { background: #e2e8f0; }
+  .placement-btn.active {
+    background: #3182ce; color: white;
+    border-color: #2c5282;
+  }
+  .placement-table, .shooter-table, .goalie-table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+  .placement-table th, .placement-table td,
+  .shooter-table th, .shooter-table td,
+  .goalie-table th, .goalie-table td {
+    padding: 6px 8px; text-align: left; border-bottom: 1px solid #e2e8f0;
+  }
+  .placement-table th, .shooter-table th, .goalie-table th {
+    background: #f7fafc; font-weight: 600;
+  }
+  .shooter-table { font-size: 12px; }
+  .shooter-table th, .goalie-table th { font-size: 11px; }
+  .shooter-table tr:hover, .goalie-table tr:hover { background: #f7fafc; }
+  .shooter-table .pct, .goalie-table .pct { text-align: right; }
+  .shooter-table .pdf-link {
+    color: #c53030; font-weight: 600; text-decoration: none; font-size: 11px;
+  }
+  .shooter-table .pdf-link:hover { text-decoration: underline; }
+  .export-buttons {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 6px; margin-top: 12px;
+  }
+  .btn-export {
+    padding: 8px 6px; font-size: 11px; font-weight: 600;
+    color: white;
+    border: none; border-radius: 4px; cursor: pointer;
+    text-align: center; text-decoration: none;
+    display: inline-block;
+  }
+  .btn-export:hover { opacity: 0.85; }
+  .btn-export.csv { background: #38a169; }
+  .btn-export.json { background: #3182ce; }
+  .btn-export.report { background: #d69e2e; }
+  .btn-export.pdf-team { background: #9b2c2c; }
+  .game-bar {
+    background: #1a365d; color: white; padding: 12px 20px;
+    border-radius: 8px; margin-bottom: 20px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .game-bar.no-game { background: #4a5568; }
+  .game-bar h2 { font-size: 16px; font-weight: 600; }
+  .game-bar .meta { font-size: 13px; opacity: 0.85; margin-top: 2px; }
+  .game-bar .actions { display: flex; gap: 8px; }
+  .game-item {
+    padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 6px;
+    margin-bottom: 8px; display: flex; justify-content: space-between;
+    align-items: center;
+  }
+  .game-item.active {
+    border-color: #3182ce; background: #ebf8ff;
+  }
+  .game-item.completed { opacity: 0.7; }
+  .game-meta { font-size: 11px; color: #718096; margin-top: 2px; }
+  .status-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 8px;
+    font-size: 11px; font-weight: 600;
+  }
+  .status-badge.active { background: #c6f6d5; color: #22543d; }
+  .status-badge.completed { background: #e2e8f0; color: #4a5568; }
+  .modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5); z-index: 1000;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: white; border-radius: 8px; padding: 24px;
+    max-width: 500px; width: 90%;
+  }
+  .modal h3 { margin-bottom: 16px; }
+  .goalie-row {
+    display: flex; gap: 8px; align-items: center;
+    margin-bottom: 8px;
+  }
+  .goalie-row input { flex: 1; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Lacrosse Expected Goals Tracker</h1>
+
+  <div id="game-bar" class="game-bar no-game">
+    <div>
+      <h2 id="game-title">No Active Game</h2>
+      <div class="meta" id="game-meta">Start a new game to begin logging shots</div>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" id="manage-game-btn" onclick="openGameModal()">Manage Games</button>
+      <button class="btn-secondary" id="manage-goalies-btn" onclick="openGoalieModal()" style="display:none;">Manage Goalies</button>
+      <button class="btn-success" id="end-game-btn" onclick="endCurrentGame()" style="display:none;">End Game</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div>
+      <div class="card">
+        <h3 style="margin-bottom: 12px;">Attack Zone Shot Map</h3>
+        <div id="field-container">
+          <svg id="field-svg" viewBox="0 0 700 650" preserveAspectRatio="xMidYMid meet">
+            <rect x="0" y="0" width="700" height="650" fill="#2f855a"/>
+            <circle cx="350" cy="0" r="300" fill="none" stroke="#a0aec0" stroke-dasharray="4,4" stroke-width="1" opacity="0.6"/>
+            <line x1="0" y1="200" x2="700" y2="200" stroke="#cbd5e0" stroke-width="2" stroke-dasharray="6,4"/>
+            <text x="690" y="195" fill="#cbd5e0" font-size="12" text-anchor="end">20 yd</text>
+            <path d="M 230 0 A 120 120 0 0 1 470 0" fill="rgba(173,216,230,0.4)" stroke="#3182ce" stroke-width="2"/>
+            <rect x="295" y="5" width="110" height="8" fill="#2d3748"/>
+            <rect x="292" y="-22" width="6" height="30" fill="#d32f2f" stroke="white" stroke-width="1"/>
+            <rect x="402" y="-22" width="6" height="30" fill="#d32f2f" stroke="white" stroke-width="1"/>
+            <rect x="292" y="-25" width="116" height="4" fill="#d32f2f" stroke="white" stroke-width="1"/>
+            <g opacity="0.4">
+              <line x1="298" y1="-21" x2="298" y2="10" stroke="white" stroke-width="0.5"/>
+              <line x1="310" y1="-21" x2="310" y2="10" stroke="white" stroke-width="0.5"/>
+              <line x1="322" y1="-21" x2="322" y2="10" stroke="white" stroke-width="0.5"/>
+              <line x1="334" y1="-21" x2="334" y2="10" stroke="white" stroke-width="0.5"/>
+              <line x1="346" y1="-21" x2="346" y2="10" stroke="white" stroke-width="0.5"/>
+              <line x1="358" y1="-21" x2="358" y2="10" stroke="white" stroke-width="0.5"/>
+              <line x1="370" y1="-21" x2="370" y2="10" stroke="white" stroke-width="0.5"/>
+              <line x1="382" y1="-21" x2="382" y2="10" stroke="white" stroke-width="0.5"/>
+              <line x1="394" y1="-21" x2="394" y2="10" stroke="white" stroke-width="0.5"/>
+              <line x1="292" y1="-15" x2="408" y2="-15" stroke="white" stroke-width="0.5"/>
+              <line x1="292" y1="-7" x2="408" y2="-7" stroke="white" stroke-width="0.5"/>
+              <line x1="292" y1="0" x2="408" y2="0" stroke="white" stroke-width="0.5"/>
+            </g>
+            <line x1="200" y1="0" x2="500" y2="0" stroke="white" stroke-width="2" opacity="0.7"/>
+            <text x="350" y="-32" fill="white" font-size="11" text-anchor="middle" font-weight="600">GOAL</text>
+            <line x1="350" y1="0" x2="350" y2="650" stroke="rgba(255,255,255,0.15)" stroke-width="1" stroke-dasharray="4,4"/>
+            <text x="10" y="640" fill="rgba(255,255,255,0.5)" font-size="10">Click to place shot</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom: 12px;">Logged Shots (<span id="shot-count">0</span>)</h3>
+        <div id="shots-list"></div>
+</div>
+
+      <div class="card">
+        <h3 style="margin-bottom: 12px;">Per-Shooter Stats</h3>
+        <table class="shooter-table" id="shooter-table">
+ <thead>
+            <tr>
+              <th>Shooter</th><th>Jersey</th><th>Name</th>
+              <th class="pct">Shots</th><th class="pct">Goals</th>
+              <th class="pct">xG</th><th class="pct">xDiff</th>
+              <th class="pct">SH%</th><th class="pct">PDF</th>
+            </tr>
+</thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom: 12px;">Goalie Performance</h3>
+        <table class="goalie-table" id="goalie-table">
+          <thead>
+            <tr>
+              <th>Goalie</th><th class="pct">Save%</th><th>Tier</th>
+              <th class="pct">Shots</th><th class="pct">Goals</th>
+              <th class="pct">xG</th><th class="pct">xDiff</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h3 style="margin-bottom: 12px;">New Shot</h3>
+        <form id="shot-form">
+          <div class="form-row-3">
+            <div class="form-group">
+              <label>Jersey #</label>
+              <input type="text" id="jersey-input" placeholder="e.g. 12">
+            </div>
+            <div class="form-group">
+              <label>Player Name</label>
+              <input type="text" id="name-input" placeholder="Optional">
+            </div>
+            <div class="form-group">
+              <label>Shooter ID</label>
+              <input type="text" id="shooter-id" placeholder="e.g. P12" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>X (lateral, yd)</label>
+              <input type="number" id="x-input" step="0.1" required>
+</div>
+            <div class="form-group">
+              <label>Y (forward, yd)</label>
+              <input type="number" id="y-input" step="0.1" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Shooting Hand</label>
+              <select id="shooting-hand" required>
+                <option value="right" selected>Right</option>
+                <option value="left">Left</option>
+                <option value="ambidextrous">Ambidextrous</option>
+                <option value="unknown">Unknown</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Quality</label>
+              <select id="shot-quality" required>
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Goalie</label>
+              <input type="text" id="goalie-name" placeholder="Optional" list="goalie-list">
+ <datalist id="goalie-list"></datalist>
+            </div>
+            <div class="form-group">
+              <label>Goalie Save %</label>
+              <input type="number" id="goalie-save-pct" placeholder="auto-filled" step="0.1" min="0" max="100">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Game Situation</label>
+              <select id="game-situation" required>
+                <option value="even">Even</option>
+                <option value="power_play">Power Play</option>
+                <option value="short_handed">Short Handed</option>
+                <option value="empty_net">Empty Net</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Defender Dist (yd)</label>
+              <input type="number" id="defender-distance" value="5" step="0.5" min="0" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label><input type="checkbox" id="rebound"> Rebound Shot</label>
+          </div>
+
+          <div class="form-group">
+            <label>Shot Placement</label>
+            <div class="placement-grid" id="placement-grid">
+              <button type="button" class="placement-btn" data-placement="goalie_stick_high">Stick Side · High</button>
+              <button type="button" class="placement-btn" data-placement="goalie_off_stick_high">Off-Stick · High</button>
+              <button type="button" class="placement-btn" data-placement="goalie_stick_hip">Stick Side · Hip</button>
+              <button type="button" class="placement-btn" data-placement="goalie_off_stick_hip">Off-Stick · Hip</button>
+              <button type="button" class="placement-btn" data-placement="five_hole">Five Hole</button>
+              <button type="button" class="placement-btn" data-placement="goalie_stick_low">Stick Side · Low</button>
+              <button type="button" class="placement-btn" data-placement="goalie_off_stick_low">Off-Stick · Low</button>
+              <button type="button" class="placement-btn" data-placement="off_target">Off Target</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <button type="button" id="goal-toggle" class="btn-toggle">Did it go in? (click to mark GOAL)</button>
+          </div>
+
+          <button type="submit" class="btn-primary" id="submit-btn" disabled>Start a Game First</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom: 12px;">Statistics</h3>
+        <div class="stats-grid">
+          <div class="stat-tile">
+            <div class="stat-label">Shots</div>
+            <div class="stat-value" id="stat-shots">0</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-label">Goals</div>
+            <div class="stat-value" id="stat-goals">0</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-label">Total xG</div>
+            <div class="stat-value" id="stat-xg">0.00</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-label">xDiff</div>
+            <div class="stat-value" id="stat-xdiff">0.00</div>
+          </div>
+        </div>
+
+        <div class="export-buttons">
+          <a href="#" id="export-csv" class="btn-export csv" download>CSV</a>
+          <a href="#" id="export-json" class="btn-export json" download>JSON</a>
+          <a href="#" id="export-report" class="btn-export report" download>Text</a>
+          <a href="#" id="export-all-pdf" class="btn-export pdf-team" download>Team PDF</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom: 12px;">Placement Breakdown</h3>
+        <table class="placement-table" id="placement-table">
+          <thead><tr><th>Placement</th><th>Shots</th><th>Goals</th><th>%</th></tr></thead>
+          <tbody></tbody>
+</table>
+      </div>
+    </div>
+ </div>
+</div>
+
+<div class="modal-overlay" id="game-modal">
+  <div class="modal">
+    <h3>Manage Games</h3>
+    <h4 style="margin-top: 16px;">Start New Game</h4>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Opponent</label>
+        <input type="text" id="new-opponent" placeholder="e.g. UVA">
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="new-date">
+      </div>
+    </div>
+    <button class="btn-success" onclick="startNewGame()" style="margin-bottom: 20px;">Start Game</button>
+    <h4>All Games</h4>
+    <div id="games-list"></div>
+<div style="margin-top: 20px; text-align: right;">
+      <button class="btn-secondary" onclick="closeGameModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="goalie-modal">
+  <div class="modal">
+    <h3>Manage Goalies for Current Game</h3>
+    <p class="help-text">Set each goalie's save % once for this game.</p>
+    <div id="game-goalie-list" style="margin-top: 12px;"></div>
+    <div class="goalie-row" style="margin-top: 12px;">
+      <input type="text" id="new-goalie-name" placeholder="Goalie name">
+      <input type="number" id="new-goalie-save" placeholder="Save %" step="0.1" style="width: 100px;">
+      <button class="btn-primary" onclick="addGameGoalie()" style="width: auto; padding: 8px 14px;">Add</button>
+    </div>
+    <div style="margin-top: 20px; text-align: right;">
+      <button class="btn-secondary" onclick="closeGoalieModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const fieldContainer = document.getElementById('field-container');
+const fieldSvg = document.getElementById('field-svg');
+const shotList = document.getElementById('shots-list');
+const placementGrid = document.getElementById('placement-grid');
+const goalToggle = document.getElementById('goal-toggle');
+const XG_YARD_TO_PX = 10;
+
+const PLACEMENT_LABELS = {
+  goalie_stick_high: 'Stick Side · High', goalie_off_stick_high: 'Off-Stick · High',
+  goalie_stick_hip: 'Stick Side · Hip', goalie_off_stick_hip: 'Off-Stick · Hip',
+  five_hole: 'Five Hole', goalie_stick_low: 'Stick Side · Low',
+  goalie_off_stick_low: 'Off-Stick · Low', off_target: 'Off Target',
+};
+const HAND_LABELS = { right: 'R', left: 'L', ambidextrous: 'A', unknown: '?' };
+
+function goalieTierClass(s) {
+  if (!s || s <= 0) return '';
+  if (s >= 56) return 'elite';
+  if (s >= 50) return 'solid';
+  return 'weak';
+}
+function goalieTierShort(s) {
+  if (!s || s <= 0) return '-';
+  if (s >= 56) return 'Elite';
+  if (s >= 50) return 'Solid';
+  return 'Avg';
+}
+
+let games = [];
+let currentGame = null;
+let shots = [];
+let gameGoalies = {};
+let selectedPlacement = null;
+let isGoal = false;
+let indicatorsLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+fieldSvg.appendChild(indicatorsLayer);
+
+placementGrid.addEventListener('click', (e) => {
+  const btn = e.target.closest('.placement-btn');
+  if (!btn) return;
+  document.querySelectorAll('.placement-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedPlacement = btn.dataset.placement;
+});
+
+goalToggle.addEventListener('click', () => {
+  isGoal = !isGoal;
+  goalToggle.textContent = isGoal ? 'GOAL (click to undo)' : 'Did it go in? (click to mark GOAL)';
+  goalToggle.classList.toggle('is-goal', isGoal);
+});
+
+document.getElementById('goalie-name').addEventListener('change', (e) => {
+  const name = e.target.value.trim();
+  if (gameGoalies[name]) {
+    document.getElementById('goalie-save-pct').value = gameGoalies[name];
+  }
+});
+
+async function loadAllData() {
+  const [gamesRes, shotsRes, statsRes, shootersRes, goaliesRes] = await Promise.all([
+    fetch('/api/games'),
+    fetch('/api/shots'),
+    fetch('/api/stats'),
+    fetch('/api/shooters'),
+    fetch('/api/goalies'),
+  ]);
+  games = await gamesRes.json();
+  currentGame = games.find(g => g.status === 'active') || null;
+  shots = await shotsRes.json();
+  const stats = await statsRes.json();
+  const shooters = await shootersRes.json();
+  gameGoalies = await goaliesRes.json();
+
+  renderGameBar();
+  renderShots();
+  renderStats(stats);
+  renderIndicators();
+  renderPlacementTable(stats.placement_breakdown || {});
+  renderShooterTable(shooters);
+  renderGoalieTable(stats.goalie_breakdown || {});
+
+  const datalist = document.getElementById('goalie-list');
+  datalist.innerHTML = Object.keys(gameGoalies).map(n => `<option value="${n}">`).join('');
+  updateExportLinks();
+  updateSubmitButton();
+}
+
+function renderGameBar() {
+  const bar = document.getElementById('game-bar');
+  const title = document.getElementById('game-title');
+  const meta = document.getElementById('game-meta');
+  const endBtn = document.getElementById('end-game-btn');
+  const goalieBtn = document.getElementById('manage-goalies-btn');
+
+  if (currentGame) {
+    bar.classList.remove('no-game');
+    title.textContent = `vs ${currentGame.opponent || 'Unknown'}`;
+    meta.textContent = `Date: ${currentGame.date} • ${shots.length} shots logged`;
+    endBtn.style.display = '';
+    goalieBtn.style.display = '';
+  } else {
+    bar.classList.add('no-game');
+    title.textContent = 'No Active Game';
+    meta.textContent = 'Start a new game to begin logging shots';
+    endBtn.style.display = 'none';
+    goalieBtn.style.display = 'none';
+  }
+}
+
+function updateSubmitButton() {
+  const btn = document.getElementById('submit-btn');
+  if (currentGame) {
+    btn.disabled = false;
+    btn.textContent = 'Log Shot';
+  } else {
+    btn.disabled = true;
+    btn.textContent = 'Start a Game First';
+  }
+}
+
+function updateExportLinks() {
+  const suffix = currentGame ? `?game_id=${currentGame.game_id}` : '';
+  document.getElementById('export-csv').href = '/api/export/csv' + suffix;
+  document.getElementById('export-json').href = '/api/export/json' + suffix;
+  document.getElementById('export-report').href = '/api/export/report' + suffix;
+  document.getElementById('export-all-pdf').href = '/api/export/all-pdf' + suffix;
+}
+
+function openGameModal() {
+  renderGamesList();
+  document.getElementById('new-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('game-modal').classList.add('open');
+}
+function closeGameModal() {
+  document.getElementById('game-modal').classList.remove('open');
+}
+
+function renderGamesList() {
+  const list = document.getElementById('games-list');
+  if (games.length === 0) {
+    list.innerHTML = '<div class="empty-state">No games yet</div>';
+    return;
+  }
+  list.innerHTML = games.sort((a, b) => b.created_at.localeCompare(a.created_at)).map(g => {
+    const isActive = g.status === 'active';
+    return `
+      <div class="game-item ${isActive ? 'active' : ''} ${g.status === 'completed' ? 'completed' : ''}">
+        <div>
+          <div><strong>vs ${g.opponent || 'Unknown'}</strong>
+            <span class="status-badge ${g.status}">${g.status}</span>
+          </div>
+          <div class="game-meta">${g.date} • ${g.game_id}</div>
+        </div>
+        <div>
+          ${g.status === 'completed' ?
+            `<button class="btn-secondary" onclick="reactivateGame('${g.game_id}')">Reopen</button>` : ''}
+          <button class="btn-danger" onclick="deleteGame('${g.game_id}')" style="padding: 4px 10px; font-size: 11px;">Delete</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function startNewGame() {
+  const opponent = document.getElementById('new-opponent').value.trim();
+  const date = document.getElementById('new-date').value;
+ if (!opponent) { alert('Please enter an opponent name.'); return; }
+  if (currentGame) {
+    await fetch(`/api/games/${currentGame.game_id}/complete`, { method: 'POST' });
+  }
+  await fetch('/api/games', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ opponent, date }),
+  });
+  await loadAllData();
+  closeGameModal();
+}
+
+async function endCurrentGame() {
+  if (!currentGame) return;
+  if (!confirm(`End game vs ${currentGame.opponent}?`)) return;
+  await fetch(`/api/games/${currentGame.game_id}/complete`, { method: 'POST' });
+  await loadAllData();
+}
+
+async function reactivateGame(gameId) {
+  await fetch(`/api/games/${gameId}/reactivate`, { method: 'POST' });
+  await loadAllData();
+  closeGameModal();
+}
+
+async function deleteGame(gameId) {
+  if (!confirm('Delete this game AND all its shots?')) return;
+  await fetch(`/api/games/${gameId}`, { method: 'DELETE' });
+  await loadAllData();
+}
+
+function openGoalieModal() {
+  if (!currentGame) return;
+  renderGameGoalies();
+  document.getElementById('goalie-modal').classList.add('open');
+}
+function closeGoalieModal() {
+  document.getElementById('goalie-modal').classList.remove('open');
+}
+
+function renderGameGoalies() {
+  const list = document.getElementById('game-goalie-list');
+  const entries = Object.entries(gameGoalies);
+  if (entries.length === 0) {
+    list.innerHTML = '<div class="empty-state">No goalies registered yet</div>';
+    return;
+  }
+  list.innerHTML = entries.map(([name, savePct]) => `
+    <div class="goalie-row">
+      <div><strong>${name}</strong> — ${savePct.toFixed(1)}%
+        <span class="goalie-pill ${goalieTierClass(savePct)}">${goalieTierShort(savePct)}</span>
+</div>
+      <button class="btn-danger" onclick="removeGameGoalie('${name}')" style="padding: 4px 10px; font-size: 11px;">Remove</button>
+    </div>
+  `).join('');
+}
+
+async function addGameGoalie() {
+  const name = document.getElementById('new-goalie-name').value.trim();
+  const save = document.getElementById('new-goalie-save').value;
+  if (!name || !save) { alert('Need both name and save %.'); return; }
+  await fetch('/api/goalies', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, save_pct: parseFloat(save), game_id: currentGame.game_id }),
+  });
+  document.getElementById('new-goalie-name').value = '';
+  document.getElementById('new-goalie-save').value = '';
+  await loadAllData();
+  renderGameGoalies();
+}
+
+async function removeGameGoalie(name) {
+  await fetch('/api/goalies', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, save_pct: null, game_id: currentGame.game_id }),
+  });
+  await loadAllData();
+  renderGameGoalies();
+}
+
+function renderIndicators() {
+  indicatorsLayer.innerHTML = '';
+  for (const shot of shots) {
+    const svgX = 350 + shot.x * XG_YARD_TO_PX;
+    const svgY = shot.y * XG_YARD_TO_PX;
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', svgX);
+    circle.setAttribute('cy', svgY);
+    circle.setAttribute('r', 8 + shot.xg * 18);
+    circle.setAttribute('fill', shot.is_goal ? 'rgba(72,187,120,0.85)' : 'rgba(245,101,101,0.7)');
+    circle.setAttribute('stroke', 'white');
+    circle.setAttribute('stroke-width', '1.5');
+    indicatorsLayer.appendChild(circle);
+  }
+}
+
+function renderShots() {
+  document.getElementById('shot-count').textContent = shots.length;
+  if (shots.length === 0) {
+    shotList.innerHTML = '<div class="empty-state">No shots logged yet</div>';
+    return;
+  }
+  shotList.innerHTML = shots.slice().reverse().map(shot => {
+    const xgClass = shot.xg > 0.30 ? 'xg-high' : shot.xg > 0.15 ? 'xg-med' : 'xg-low';
+    const placementLabel = PLACEMENT_LABELS[shot.placement] || shot.placement;
+    const hand = shot.shooting_hand || 'unknown';
+    const goalieName = shot.goalie_name || '';
+    const goalieSavePct = shot.goalie_save_pct;
+    const goalieClass = goalieTierClass(goalieSavePct);
+    const goalieBadge = goalieName ?
+      `<span class="goalie-pill ${goalieClass}">vs ${goalieName}${goalieSavePct ? ' (' + Number(goalieSavePct).toFixed(0) + '%)' : ''}</span>` : '';
+    return `
+      <div class="shot-item">
+        <div style="flex: 1;">
+          <div>
+            <strong>#${shot.jersey_number || '?'} ${shot.player_name || shot.shooter_id}</strong>
+            <span class="hand-pill ${hand}">${HAND_LABELS[hand] || '?'}</span>
+            <span class="xg-pill ${xgClass}">${(shot.xg * 100).toFixed(0)}%</span>
+            ${goalieBadge}
+          </div>
+          <div class="shot-meta">
+            ${shot.is_goal ? 'GOAL' : 'Miss'} • ${placementLabel}
+            ${shot.rebound ? ' • Rebound' : ''}
+          </div>
+        </div>
+        <button class="btn-danger" onclick="deleteShot('${shot.shot_id}')" style="padding: 4px 8px; font-size: 12px;">×</button>
+</div>
+    `;
+  }).join('');
+}
+
+function renderStats(stats) {
+  document.getElementById('stat-shots').textContent = shots.length;
+  const goalCount = shots.filter(s => s.is_goal).length;
+  document.getElementById('stat-goals').textContent = goalCount;
+  document.getElementById('stat-xg').textContent = stats.total_xg.toFixed(2);
+  const xdiffEl = document.getElementById('stat-xdiff');
+  xdiffEl.textContent = (stats.xdiff >= 0 ? '+' : '') + stats.xdiff.toFixed(2);
+  xdiffEl.className = 'stat-value ' + (stats.xdiff >= 0 ? 'positive' : 'negative');
+}
+
+function renderPlacementTable(breakdown) {
+  const tbody = document.querySelector('#placement-table tbody');
+  tbody.innerHTML = Object.entries(breakdown).map(([key, data]) => {
+    const pct = data.shots > 0 ? (data.goals / data.shots * 100).toFixed(0) : '0';
+    return `<tr><td>${PLACEMENT_LABELS[key] || key}</td><td>${data.shots}</td><td>${data.goals}</td><td><strong>${pct}%</strong></td></tr>`;
+  }).join('');
+}
+
+function renderShooterTable(shooters) {
+  const tbody = document.querySelector('#shooter-table tbody');
+  const entries = Object.entries(shooters);
+  if (entries.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:#a0aec0;">No shooter data</td></tr>';
+    return;
+  }
+  entries.sort((a, b) => b[1].total_xg - a[1].total_xg);
+  tbody.innerHTML = entries.map(([shooterId, data]) => {
+    const shPct = data.shots > 0 ? (data.goals / data.shots * 100).toFixed(1) : '0';
+    const safeId = encodeURIComponent(shooterId);
+    const gameSuffix = currentGame ? `?game_id=${currentGame.game_id}` : '';
+    return `
+<tr>
+        <td><strong>${shooterId}</strong></td>
+        <td>${data.jersey_number || '-'}</td>
+<td>${data.player_name || '-'}</td>
+        <td class="pct">${data.shots}</td>
+        <td class="pct">${data.goals}</td>
+        <td class="pct">${data.total_xg.toFixed(2)}</td>
+        <td class="pct" style="color: ${data.xdiff >= 0 ? '#38a169' : '#e53e3e'}; font-weight: 600;">
+          ${data.xdiff >= 0 ? '+' : ''}${data.xdiff.toFixed(2)}
+        </td>
+        <td class="pct">${shPct}%</td>
+        <td class="pct"><a href="/api/export/shooter-pdf/${safeId}${gameSuffix}" class="pdf-link" target="_blank">PDF</a></td>
+</tr>
+    `;
+  }).join('');
+}
+
+function renderGoalieTable(goalies) {
+  const tbody = document.querySelector('#goalie-table tbody');
+  const entries = Object.entries(goalies);
+  if (entries.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#a0aec0;">No goalie data</td></tr>';
+    return;
+  }
+  entries.sort((a, b) => (b[1].save_pct || 0) - (a[1].save_pct || 0));
+  tbody.innerHTML = entries.map(([name, data]) => {
+    const saveStr = data.save_pct ? data.save_pct.toFixed(1) + '%' : '-';
+    return `
+<tr>
+        <td><strong>${name}</strong></td>
+        <td class="pct">${saveStr}</td>
+        <td><span class="goalie-pill ${goalieTierClass(data.save_pct)}">${goalieTierShort(data.save_pct)}</span></td>
+        <td class="pct">${data.shots}</td>
+        <td class="pct">${data.goals}</td>
+        <td class="pct">${data.total_xg.toFixed(2)}</td>
+        <td class="pct" style="color: ${data.xdiff >= 0 ? '#38a169' : '#e53e3e'}; font-weight: 600;">
+          ${data.xdiff >= 0 ? '+' : ''}${data.xdiff.toFixed(2)}
+        </td>
+</tr>
+    `;
+  }).join('');
+}
+
+fieldContainer.addEventListener('click', (e) => {
+  const rect = fieldContainer.getBoundingClientRect();
+  const scaleX = 700 / rect.width;
+  const scaleY = 650 / rect.height;
+  const svgX = (e.clientX - rect.left) * scaleX;
+  const svgY = (e.clientY - rect.top) * scaleY;
+  const x = (svgX - 350) / XG_YARD_TO_PX;
+  const y = svgY / XG_YARD_TO_PX;
+  if (y < 0) return;
+  document.getElementById('x-input').value = x.toFixed(1);
+  document.getElementById('y-input').value = y.toFixed(1);
+});
+
+document.getElementById('shot-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!currentGame) {
+    alert('Please start a game first.');
+    return;
+  }
+  if (!selectedPlacement) {
+    alert('Please select where the shot ended up.');
+    return;
+  }
+  const shooterId = document.getElementById('shooter-id').value.trim();
+  if (!shooterId) {
+    alert('Please enter a shooter ID.');
+    return;
+  }
+  const shot = {
+    game_id: currentGame.game_id,
+    x: parseFloat(document.getElementById('x-input').value),
+    y: parseFloat(document.getElementById('y-input').value),
+    shooter_id: shooterId,
+    jersey_number: document.getElementById('jersey-input').value.trim(),
+    player_name: document.getElementById('name-input').value.trim(),
+    shooting_hand: document.getElementById('shooting-hand').value,
+    game_situation: document.getElementById('game-situation').value,
+    shot_quality: document.getElementById('shot-quality').value,
+    defender_distance: parseFloat(document.getElementById('defender-distance').value),
+    rebound: document.getElementById('rebound').checked,
+    is_goal: isGoal,
+    placement: selectedPlacement,
+    goalie_name: document.getElementById('goalie-name').value.trim(),
+    goalie_save_pct: parseFloat(document.getElementById('goalie-save-pct').value) || null,
+  };
+  await fetch('/api/shots', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(shot),
+  });
+  selectedPlacement = null;
+  isGoal = false;
+  document.querySelectorAll('.placement-btn').forEach(b => b.classList.remove('active'));
+  goalToggle.textContent = 'Did it go in? (click to mark GOAL)';
+  goalToggle.classList.remove('is-goal');
+  await loadAllData();
+});
+
+async function deleteShot(id) {
+  await fetch(`/api/shots/${id}`, { method: 'DELETE' });
+  await loadAllData();
+}
+
+loadAllData();
+</script>
+</body>
+</html>

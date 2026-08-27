@@ -1,0 +1,72 @@
+{
+  "16": {
+    "jersey_number": "16",
+    "player_name": "Nik Perkins",
+    "shooter_id": "NP16"
+  },
+  "2": {
+    "jersey_number": "2",
+    "player_name": "Chase Wagner",
+    "shooter_id": "CW2"
+  },
+  "5": {
+    "jersey_number": "5",
+    "player_name": "jimmy johnson",
+    "shooter_id": "JJ5"
+  },
+  "8": {
+    "jersey_number": "8",
+    "player_name": "Maxx Showtime",
+    "shooter_id": "MS8"
+  },
+  "9": {
+    "jersey_number": "9",
+    "player_name": "Jason Anton",
+    "shooter_id": "JA9"
+  },
+  "1": {
+    "jersey_number": "1",
+    "player_name": "Dylan Meade",
+    "shooter_id": "DM1"
+  },
+  "29": {
+    "jersey_number": "29",
+    "player_name": "Cole Struzeri",
+    "shooter_id": "CS29"
+  },
+  "88": {
+    "jersey_number": "88",
+    "player_name": "Collin Mayberry",
+    "shooter_id": "CM88"
+  },
+  "6": {
+    "jersey_number": "6",
+    "player_name": "Jack Guerrisi",
+    "shooter_id": "JG6"
+  },
+  "12": {
+    "jersey_number": "12",
+    "player_name": "Jackson Elms",
+    "shooter_id": "JE12"
+  },
+  "4": {
+    "jersey_number": "4",
+    "player_name": "Matt Lynch",
+    "shooter_id": "ML4"
+  },
+  "40": {
+    "jersey_number": "40",
+    "player_name": "Isaac Koniseg",
+    "shooter_id": "IK40"
+  },
+  "00": {
+    "jersey_number": "00",
+    "player_name": "sample",
+    "shooter_id": "S00"
+  },
+  "3": {
+    "jersey_number": "3",
+    "player_name": "john doe",
+    "shooter_id": "jd3"
+  }
+}
